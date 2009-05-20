@@ -1,0 +1,213 @@
+#title CLJDB  0.3
+* Using Emacs Jdb mode to debug Clojure
+
+** What is CLJDB?
+
+CLJDB is a hack that adds some Clojure support to emacs jdb, (command line java debug interface,) mode.  It still a work in progress, and has some funky aspects due to language differences between Clojure and Java, but you can:
+    - catch exceptions and  bring them up in the source code
+    - print out locals 
+    - set breakpoints and step through both clojure and java files
+    - move up and down the stack
+
+
+all from within emacs.
+
+
+
+* Setup
+
+** Load Emacs jdb enhancements for Clojure
+
+In your .emacs, add:
+
+<example>
+(load-file "<path>/cljdb.el")
+</example>
+
+Then evaluate that sexp, or restart emacs.
+
+The file is located here:
+[[http://georgejahad.com/clojure/cljdb.el]]
+
+
+** Set Classpath
+
+Emacs jdb mode assumes that all source can be found from the class
+path, so you need to update your classpath to include a pointer to any
+directories that have source code you want to debug.  The directory
+structure must be namespace particular so, for example, to debug
+clojure.core, you need an entry in your classpath that points to a
+directory that contains clojure/core.clj.
+
+** Set namespaces
+
+All clojure source code must contain a namespace command, e.g. "(ns
+clojure.core)". cljdb.el uses this to help determine the proper source
+path.
+
+** Set JVM command line args
+
+The jdb will require the vm to be started with the following command line args:
+
+<example>
+-agentlib:jdwp=transport=dt_socket,address=8021,server=y,suspend=n
+</example>
+
+The address above, 8021, is an arbitrary port number and can be changed as needed.
+
+If using slime-clojure, adding this to your .emacs suffice:
+
+<example>
+(setq swank-clojure-extra-vm-args '("-agentlib:jdwp=transport=dt_socket,address=8021,server=y,suspend=n"))
+</example>
+
+** Start Emacs Jdb mode
+
+<example>
+M-x jdb -attach 8021 
+</example>
+
+This will start up the jdb and connect it to the vm.  It will bring up a buffer called: <example>*gud-8021*</example>
+
+This buffer displays the jdb and you can run standard jdb commands from here. 
+
+
+
+* Useful commands
+
+** Keystroke commands
+Keystroke   ||  Command Executed
+
+C-x C-a C-b  |	From within a file buffer, sets a breakpoint on the current line. (Currently only works on clj files.  The rest of the commands below should work on both .java and .clj files.)
+
+C-x C-a C-n  | jdb Next command
+C-x C-a C-s |	jdb Step command
+C-x C-a C-f |	jdb Step up command, which runs to the end of the current function
+C-x C-a C-l |	refresh the display
+C-x C-a C-r |	continue
+C-x C-a < |	up stackframe
+C-x C-a > |	down stackframe
+
+
+** Other useful commands that can be run from the jdb command line
+
+
+Command   ||  Output
+locals | list of the method args and local variables
+print <var> | prints the contents of var, which could be a method,instance or class variable, or a method argument
+where | print the stacktrace, and refresh the file display
+catch | trap java exceptions
+help | print all available jdb commands
+clear | view/unset current breakpoints
+
+* Test Drive
+
+To confirm that it is all working, run the following tests:
+
+** Catch exception
+
+At the jdb command line in the*gud-8021* buffer, type:
+
+<example>
+catch all java.lang.NullPointerException
+</example>
+
+At the repl, type:
+
+<example>
+(max-key :b {:b 1} nil)
+</example>
+
+At this point a buffer should pop up containing the 
+clojure/src/jvm/clojure/lang/Numbers.java source, with the cursor
+at this line:
+
+<example>
+Class xc = x.getClass();
+</example>
+
+Note that the exception was caused by trying to dereference the null pointer x.
+From here, you should be able to go up and down the stack 
+with the appropriate file being displayed in the buffer.
+
+You should also be able to use the print command from
+the jdb command line to print out the values of different
+variables.  For example, in the above stack frame, this
+command:
+
+<example>
+ print x
+</example>
+
+should return:
+
+<example>
+ x = null
+</example>
+
+while one stack frame up, it should print:
+
+<example>
+ x = "1"
+</example>
+
+Continue on from this exception, so that you get back to the repl prompt.
+
+
+** Set Breakpoint
+
+Bring up the clojure/core.clj source file in a buffer; (it needs to be the one that is pointed to by the classpath.)  Set a breakpoint in the **into** defn on this line:
+
+<example>
+      (if items
+</example>
+
+Now from the repl run this command:
+
+<example>
+(into [1 2 3] [ 4 5 6])
+</example>
+
+When the **into** function comes up in the buffer, hit next a few times to step through it,  using "print items" occasionally to see how the value of the collection changes.
+
+* Known Problems
+
+This implementation is a text-book hack.  I've made no effort to
+actually architect this mode for Clojure.  Instead, I just ran jdb
+mode with some clojure files, saw where it was breaking, and patched
+those particular problems. That means there are probably other
+problems lurking, which I simply haven't come across yet.  If *cljdb*
+becomes popular, I'll go back and do it right.  Even so,
+I've found it remarkably useful as is.  Hopefully you will too.
+Here's my current bug list:
+
+    - Breakpoints currently get messed up when you reload a file.
+      You'll need to restart the jvm and the jdb if you need to
+      reload.
+
+    - There is no keystroke command for clearing breakpoints; you have
+      to do it from the command line.
+
+    - The keystroke breakpoint set command only works on clojure
+      files.  To set a breakpoint in a java file you have to use the
+      command line.
+
+    - Sometimes when two source file names differ only by the suffix, (e.g. file1.java and file1.clj,) the wrong one appears in the source buffer.
+
+    - Occasionally, when going up or down the stackframe, the source
+      file displayed will be one frame off.  Running the *where* command
+      from the jdb command line, should correctly refresh the display.
+
+    - Occasionally, the following message appears even though it has found the source correct file:
+
+<example>
+Could not find source file. 
+</example>
+
+
+* Comments/Suggestions
+
+Send any comments/suggestions to George Jahad at "george-clojure at blackbirdsystems.net" or to the main clojure mailing list: http://groups.google.com/group/clojure
+
+
+
