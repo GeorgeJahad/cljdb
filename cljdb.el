@@ -141,13 +141,30 @@ gud, see `gud-mode'."
     (forward-char)
     (jdb-next-token)))
 
+(defun jdb-find-ns ()
+  (interactive)
+    (if (not (re-search-forward "\([ ]*ns" (buffer-size) t))
+	(error "Clojure namespace not found in file"))
+    (backward-sexp)
+    (forward-sexp)
+    (let ((end (point)))
+      (backward-sexp)
+      (if (not (string= (buffer-substring-no-properties (point) end) "ns"))
+	  (progn
+	    (forward-sexp)
+	    (jdb-find-ns)))))
+    
 
 (defun jdb-ns ()
   (save-excursion
     (beginning-of-buffer)
-    (search-forward "(ns ")
-    (backward-sexp)
-    (jdb-next-token)))
+    (jdb-find-ns)
+    (let ((namespace  (jdb-next-token)))
+      (while (string= (substring namespace 0 1) "#")
+	(forward-sexp)
+	(setq namespace (jdb-next-token)))
+      namespace)))
+
 
 (setq jdb-fixup-strings 
       '("-"  "_" 
