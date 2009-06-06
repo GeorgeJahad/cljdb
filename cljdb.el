@@ -369,7 +369,6 @@ relative to a classpath directory."
       ;; Return the info as a cons of the form:
       ;;
       ;;     (<file-name> . <line-number>) .
-      (message "searching for source")
       (if (if (match-beginning 1)
 	      (let (n)
 		(setq n (string-to-number (substring
@@ -451,5 +450,7 @@ relative to a classpath directory."
 		     (gud-gdb-run-command-fetch-lines  
 		      (format "print %s" (match-string 1 (car locals)))
 		      gud-comint-buffer)))
-	  (cljdb-print-locals-intern (cdr locals) acc)))
+	  (if (string-match "No local variables" (car locals))
+	      '("No local variables")
+	    (cljdb-print-locals-intern (cdr locals) acc))))
     acc))
